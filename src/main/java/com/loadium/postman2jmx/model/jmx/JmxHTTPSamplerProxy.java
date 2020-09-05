@@ -5,15 +5,22 @@ import com.loadium.postman2jmx.model.postman.PostmanQuery;
 import com.loadium.postman2jmx.utils.UrlUtils;
 import org.apache.jmeter.config.Arguments;
 import org.apache.jmeter.protocol.http.control.gui.HttpTestSampleGui;
+import org.apache.jmeter.protocol.http.sampler.HTTPSamplerBase;
 import org.apache.jmeter.protocol.http.sampler.HTTPSamplerProxy;
+import org.apache.jmeter.protocol.http.util.EncoderCache;
 import org.apache.jmeter.protocol.http.util.HTTPArgument;
+import org.apache.jmeter.protocol.http.util.HTTPConstants;
 import org.apache.jmeter.testelement.TestElement;
 
 import java.net.MalformedURLException;
 import java.net.URL;
 
 public class JmxHTTPSamplerProxy {
-    public static HTTPSamplerProxy newInstance(PostmanItem postmanItem) {
+	private static final String HTTP_PREFIX = HTTPConstants.PROTOCOL_HTTP+"://"; // $NON-NLS-1$
+	private static final String HTTPS_PREFIX = HTTPConstants.PROTOCOL_HTTPS+"://"; // $NON-NLS-1$
+	private static final String QRY_PFX = "?"; // $NON-NLS-1$
+
+	public static HTTPSamplerProxy newInstance(PostmanItem postmanItem) {
         HTTPSamplerProxy httpSamplerProxy = new HTTPSamplerProxy();
         httpSamplerProxy.setProperty(TestElement.TEST_CLASS, HTTPSamplerProxy.class.getName());
         httpSamplerProxy.setProperty(TestElement.GUI_CLASS, HttpTestSampleGui.class.getName());
@@ -47,7 +54,8 @@ public class JmxHTTPSamplerProxy {
                 httpSamplerProxy.setProtocol(protocol);
             }
             httpSamplerProxy.setDomain(url);
-            httpSamplerProxy.setPath(path);
+            setPath(httpSamplerProxy,path);                  
+            //httpSamplerProxy.setPath(path);
         } else {
             URL url = null;
 
@@ -90,5 +98,24 @@ public class JmxHTTPSamplerProxy {
         httpSamplerProxy.setArguments(arguments);
 
         return httpSamplerProxy;
+    }
+    
+    private static void setPath(HTTPSamplerProxy httpSamplerProxy, String path)
+    {
+        boolean fullUrl = path.startsWith(HTTP_PREFIX) || path.startsWith(HTTPS_PREFIX);
+        String method = httpSamplerProxy.getMethod();
+        boolean getOrDelete = HTTPConstants.GET.equals(method) || HTTPConstants.DELETE.equals(method) || HTTPConstants.POST.equals(method) || HTTPConstants.PATCH.equals(method);
+        if (!fullUrl && getOrDelete) {
+            int index = path.indexOf(QRY_PFX);
+            if (index > -1) {
+            	httpSamplerProxy.setProperty(HTTPSamplerBase.PATH, path.substring(0, index));
+                // Parse the arguments in querystring, assuming specified encoding for values
+            	httpSamplerProxy.parseArguments(path.substring(index + 1), EncoderCache.URL_ARGUMENT_ENCODING);
+            } else {
+            	httpSamplerProxy.setProperty(HTTPSamplerBase.PATH, path);
+            }
+        } else {
+        	httpSamplerProxy.setProperty(HTTPSamplerBase.PATH, path);
+        }
     }
 }
